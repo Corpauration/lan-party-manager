@@ -55,7 +55,7 @@ VALUES ($1, $2, $3, $4)
             session.internet,
             session.date_time
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
@@ -131,7 +131,7 @@ VALUES ($1, $2, $3, $4)
                 Err(_) => return false,
             }
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
@@ -162,7 +162,7 @@ VALUES ($1, $2, $3, $4)
                 Err(_) => return false,
             }
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
@@ -229,7 +229,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             user.role,
             user.is_allowed
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
@@ -276,7 +276,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 Err(_) => return false,
             }
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
@@ -307,7 +307,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 Err(_) => return false,
             }
         )
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await
         {
             Ok(_) => {}
