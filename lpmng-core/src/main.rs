@@ -1,4 +1,7 @@
 use biscuit_auth::KeyPair;
+use tracing::{error, info};
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use warp::Filter;
 
 use api::{api_routes, public_route, ApiHandler};
@@ -13,7 +16,7 @@ mod models;
 
 fn env_abort(env: &'static str) -> impl Fn(std::env::VarError) -> String {
     move |e| {
-        eprintln!("[ERROR] ${env} is not set ({})", e);
+        error!(error=?e, "{env} is not set");
         std::process::exit(1);
     }
 }
@@ -24,6 +27,11 @@ fn env_get(env: &'static str) -> String {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(if std::env::var("RUST_LOG").is_ok() { tracing_subscriber::EnvFilter::from_default_env() } else { tracing_subscriber::EnvFilter::new("info") })
+        .init();
+
     let router_address = env_get("ROUTER_ADDRESS");
     let args: Vec<String> = std::env::args().collect();
 
@@ -50,12 +58,12 @@ async fn main() {
         };
         println!("{}", BANNER);
 
-        println!("[INFO] api keys have been found");
+        info!("api keys have been found");
 
         let db_handler = db::DbHandler::connect().await.unwrap();
-        println!("[INFO] database successfully connected");
+        info!("database successfully connected");
 
-        println!("[INFO] http server starting...");
+        info!("http server starting...");
         warp::serve(
             public_route(env_get("PUBLIC_DIR")).or(api_routes(ApiHandler {
                 db: db_handler,

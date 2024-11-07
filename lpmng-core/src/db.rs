@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::Uuid;
 use sqlx::PgPool;
-
+use tracing::error;
 use crate::auth::check_hash;
 use crate::models::{Session, User};
 
@@ -19,7 +19,7 @@ impl DbHandler {
 
     pub async fn connect() -> Option<Self> {
         let url = std::env::var("DATABASE_URL").unwrap_or_else(|e| {
-            eprintln!("[ERROR] $DATABASE_URL is not set ({})", e);
+            error!(error=?e, "DATABASE_URL is not set");
             std::process::exit(1);
         });
 
