@@ -1,5 +1,4 @@
 use lpmng_mq::client::Client;
-use tokio;
 
 #[tokio::main]
 async fn main() {

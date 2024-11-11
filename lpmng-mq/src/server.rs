@@ -2,6 +2,7 @@ pub use agent::{
     router_server::{Router, RouterServer},
     AgentResponse, PingRequest, RouterRequest,
 };
+use std::sync::Arc;
 use tonic::{transport, Request, Response, Status};
 
 pub mod agent {
@@ -25,25 +26,29 @@ impl AgentResponse {
 }
 
 #[derive(Debug)]
-pub struct RouterService {
-    pub handler: fn(RouterRequest) -> AgentResponse,
+pub struct RouterService<Context: Sync + Send> {
+    pub handler: fn(RouterRequest, Arc<Context>) -> AgentResponse,
+    pub ctx: Arc<Context>,
 }
 
-impl Default for RouterService {
+impl Default for RouterService<()> {
     fn default() -> Self {
-        fn handler(_: RouterRequest) -> AgentResponse {
+        fn handler(_: RouterRequest, _: Arc<()>) -> AgentResponse {
             AgentResponse {
                 success: false,
                 body: "Unimplemented Server Handler".into(),
             }
         }
 
-        RouterService { handler }
+        RouterService {
+            handler,
+            ctx: Arc::new(()),
+        }
     }
 }
 
 #[tonic::async_trait]
-impl Router for RouterService {
+impl<Context: Sync + Send + 'static> Router for RouterService<Context> {
     async fn ping(&self, request: Request<PingRequest>) -> Result<Response<AgentResponse>, Status> {
         if request.into_inner().body == "ping" {
             return Ok(Response::new(AgentResponse {
@@ -62,25 +67,37 @@ impl Router for RouterService {
         &self,
         request: Request<RouterRequest>,
     ) -> Result<Response<AgentResponse>, Status> {
-        Ok(Response::new((self.handler)(request.into_inner())))
+        Ok(Response::new((self.handler)(
+            request.into_inner(),
+            self.ctx.clone(),
+        )))
     }
 }
 
-pub struct Server {
+pub struct Server<Context: Sync + Send> {
     address: String,
-    handler: fn(RouterRequest) -> AgentResponse,
+    handler: fn(RouterRequest, Arc<Context>) -> AgentResponse,
+    ctx: Arc<Context>,
 }
 
-impl Server {
-    pub fn new(address: &str, handler: fn(RouterRequest) -> AgentResponse) -> Self {
+impl<Context: Sync + Send + 'static> Server<Context> {
+    pub fn new(
+        address: &str,
+        handler: fn(RouterRequest, Arc<Context>) -> AgentResponse,
+        ctx: Context,
+    ) -> Self {
         Server {
             address: address.into(),
             handler,
+            ctx: Arc::new(ctx),
         }
     }
 
-    async fn _serve(&self, service: RouterService) -> Result<(), Box<dyn std::error::Error>> {
-        let _ = transport::Server::builder()
+    async fn _serve(
+        &self,
+        service: RouterService<Context>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        transport::Server::builder()
             .add_service(RouterServer::new(service))
             .serve(self.address.parse().unwrap())
             .await?;
@@ -88,13 +105,10 @@ impl Server {
     }
 
     pub async fn serve(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self._serve(RouterService {
+        self._serve(RouterService::<Context> {
             handler: self.handler,
+            ctx: self.ctx.clone(),
         })
         .await
-    }
-
-    pub async fn serve_default(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self._serve(RouterService::default()).await
     }
 }

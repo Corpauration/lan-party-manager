@@ -1,89 +1,101 @@
-use std::process::Stdio;
+mod error;
+mod nfables;
 
+use crate::nfables::Nftables;
 use lpmng_mq::server::{AgentResponse, RouterRequest, Server};
-use tokio;
+use std::sync::Arc;
+use tracing::{error, info};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
-fn ip_to_u32(str: String) -> Option<u32> {
-    let mut res: u32 = 0;
+const HEX: [char; 22] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C',
+    'D', 'E', 'F',
+];
 
-    let split: Vec<&str> = str.split(".").collect();
-
-    if split.len() != 4 {
-        return None;
+fn is_mac_valid(str: &str) -> bool {
+    let parts = str.split(":").collect::<Vec<_>>();
+    if parts.len() != 6 {
+        return false;
     }
+    !parts
+        .into_iter()
+        .any(|part| {
+            if part.len() != 2 {
+                return true;
+            }
+            for e in part.chars() {
+                if !HEX.contains(&e) {
+                    return true;
+                }
+            }
 
-    for i in 0..4 {
-        res += (u8::from_str_radix(split[i], 10).ok()? as u32) << ((3 - i) * 4);
-    }
-
-    Some(res)
+            false
+        })
 }
 
-fn server_handler(req: RouterRequest) -> AgentResponse {
+fn server_handler(req: RouterRequest, nftables: Arc<Nftables>) -> AgentResponse {
     match req.action.as_str() {
         "add" => {
-            let ip = ip_to_u32(req.body.clone());
+            let mac = req.body;
 
-            if ip.is_none() {
-                return AgentResponse::fail("unable to parse ip");
+            if !is_mac_valid(&mac) {
+                error!(%mac, "invalid mac address");
+                return AgentResponse::fail("unable to parse mac address");
             }
 
-            println!("[INFO] adding ip : {}", req.body);
-            _ = std::process::Command::new("iptables")
-                .args(["-A", "LPMNG", "-s", &req.body, "-i", "eth1", "-j", "ACCEPT"])
-                .output();
-            AgentResponse::success()
+            info!(%mac, "adding mac address");
+
+            match nftables.add_items_in_set(vec![mac.clone()]) {
+                Ok(_) => AgentResponse::success(),
+                Err(error) => {
+                    error!(?error, %mac, "failed to add mac address");
+                    AgentResponse::fail(&format!("{error:?}"))
+                }
+            }
         }
         "remove" => {
-            let ip = ip_to_u32(req.body.clone());
+            let mac = req.body;
 
-            if ip.is_none() {
-                return AgentResponse::fail("unable to parse ip");
+            if !is_mac_valid(&mac) {
+                error!(%mac, "invalid mac address");
+                return AgentResponse::fail("unable to parse mac address");
             }
 
-            println!("[INFO] removing ip : {}", req.body);
-            _ = std::process::Command::new("iptables")
-                .args(["-D", "LPMNG", "-s", &req.body, "-i", "eth1", "-j", "ACCEPT"])
-                .output();
+            info!(%mac, "removing mac address");
 
-            AgentResponse::success()
+            match nftables.delete_items_in_set(vec![mac.clone()]) {
+                Ok(_) => AgentResponse::success(),
+                Err(error) => {
+                    error!(?error, %mac, "failed to remove mac address");
+                    AgentResponse::fail(&format!("{error:?}"))
+                }
+            }
         }
         "get" => {
-            println!("[INFO] getting ips");
+            info!("getting mac addresses");
 
-            let ips = std::process::Command::new("iptables")
-                .args(["-L", "LPMNG", "-vn"])
-                .stdout(Stdio::piped())
-                .spawn();
-
-            if ips.is_err() {
-                return AgentResponse::fail("no output");
-            }
-
-            let ips = ips.unwrap();
-            let res = std::process::Command::new("grep")
-                .args(["-oh", "10.82.\\w*.\\w*"])
-                .stdin(ips.stdout.unwrap())
-                .output();
-
-            match res {
-                Ok(r) => {
-                    let body = String::from_utf8_lossy(&r.stdout).to_string();
-
-                    AgentResponse {
-                        success: true,
-                        body,
-                    }
+            match nftables.get_items_in_set() {
+                Ok(body) => AgentResponse {
+                    success: true,
+                    body: body.join("\n"),
+                },
+                Err(error) => {
+                    error!(?error, "failed to get mac addresses");
+                    AgentResponse::fail(&format!("{error:?}"))
                 }
-                Err(_) => AgentResponse::fail("no output"),
             }
         }
         "clear" => {
-            println!("[INFO] clearing ips");
-            _ = std::process::Command::new("pfctl")
-                .args(["-t", "authorized_users", "-T", "flush"])
-                .output();
-            AgentResponse::success()
+            info!("clearing mac addresses");
+
+            match nftables.flush_set() {
+                Ok(_) => AgentResponse::success(),
+                Err(error) => {
+                    error!(?error, "failed to clear mac addresses");
+                    AgentResponse::fail(&format!("{error:?}"))
+                }
+            }
         }
         _ => AgentResponse {
             success: false,
@@ -92,34 +104,36 @@ fn server_handler(req: RouterRequest) -> AgentResponse {
     }
 }
 
-fn server_handler_test(req: RouterRequest) -> AgentResponse {
+fn server_handler_test(req: RouterRequest, _: Arc<()>) -> AgentResponse {
     match req.action.as_str() {
         "add" => {
-            let ip = ip_to_u32(req.body.clone());
+            let mac = req.body;
 
-            if ip.is_none() {
-                return AgentResponse::fail("unable to parse ip");
+            if !is_mac_valid(&mac) {
+                error!(%mac, "invalid mac address");
+                return AgentResponse::fail("unable to parse mac address");
             }
 
-            println!("[INFO] adding ip : {}", req.body);
+            info!(%mac, "adding mac address");
             AgentResponse::success()
         }
         "remove" => {
-            let ip = ip_to_u32(req.body.clone());
+            let mac = req.body;
 
-            if ip.is_none() {
-                return AgentResponse::fail("unable to parse ip");
+            if !is_mac_valid(&mac) {
+                error!(%mac, "invalid mac address");
+                return AgentResponse::fail("unable to parse mac address");
             }
 
-            println!("[INFO] removing ip : {}", req.body);
+            info!(%mac, "removing mac address");
             AgentResponse::success()
         }
         "get" => {
-            println!("[INFO] getting ips");
+            info!("getting mac addresses");
             AgentResponse::success()
         }
         "clear" => {
-            println!("[INFO] clearing ips");
+            info!("clearing mac addresses");
             AgentResponse::success()
         }
         _ => AgentResponse {
@@ -131,7 +145,7 @@ fn server_handler_test(req: RouterRequest) -> AgentResponse {
 
 fn env_abort(env: &'static str) -> impl Fn(std::env::VarError) -> String {
     move |e| {
-        eprintln!("[ERROR] ${env} is not set ({})", e);
+        error!(error=?e, "{env} is not set");
         std::process::exit(1);
     }
 }
@@ -142,16 +156,33 @@ fn env_get(env: &'static str) -> String {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(if std::env::var("RUST_LOG").is_ok() {
+            tracing_subscriber::EnvFilter::from_default_env()
+        } else {
+            tracing_subscriber::EnvFilter::new("info")
+        })
+        .init();
+
     let router_address = env_get("ROUTER_ADDRESS");
 
-    let server;
     if std::env::var("TEST").is_ok() {
-        server = Server::new(&router_address, server_handler_test);
+        info!("starting server in test mode");
+        let server = Server::new(&router_address, server_handler_test, ());
+
+        info!("server has started");
+        let _ = server.serve().await;
     } else {
-        server = Server::new(&router_address, server_handler);
+        info!("starting server in production mode");
+
+        let nf_table = env_get("NF_TABLE");
+        let nf_set = env_get("NF_SET");
+        let nftables = Nftables::new(nf_table, nf_set);
+
+        let server = Server::new(&router_address, server_handler, nftables);
+
+        info!("server has started");
+        let _ = server.serve().await;
     }
-
-    println!("[INFO] server has started");
-
-    let _ = server.serve().await;
 }
