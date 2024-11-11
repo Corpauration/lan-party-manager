@@ -1,11 +1,12 @@
-use std::str::FromStr;
-
+use crate::auth::check_hash;
+use crate::error::Error::InvalidCredential;
+use crate::error::Result;
+use crate::model::device::{Device, NewDevice};
+use crate::model::user::{User, UserInputUnchecked};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::Uuid;
 use sqlx::PgPool;
 use tracing::error;
-use crate::auth::check_hash;
-use crate::models::{Session, User};
 
 #[derive(Clone, Debug)]
 pub struct DbHandler {
@@ -17,205 +18,148 @@ impl DbHandler {
         Self { pool }
     }
 
-    pub async fn connect() -> Option<Self> {
+    pub async fn connect() -> Result<Self> {
         let url = std::env::var("DATABASE_URL").unwrap_or_else(|e| {
             error!(error=?e, "DATABASE_URL is not set");
             std::process::exit(1);
         });
 
-        match PgPoolOptions::new().connect(&url).await {
-            Ok(p) => return Some(Self::new(p)),
-            Err(_) => return None,
-        }
+        PgPoolOptions::new()
+            .connect(&url)
+            .await
+            .map(Self::new)
+            .map_err(Into::into)
     }
 
-    pub async fn insert_session(&self, session: Session) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
+    pub async fn insert_device(&self, device: NewDevice) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
 
-        let user_id = match session.user_id {
-            Some(i) => match Uuid::from_str(i.as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => None,
-            },
-            None => None,
-        };
-
-        match sqlx::query!(
+        sqlx::query!(
             r#"
-INSERT INTO sessions (ip4, user_id, internet, date_time)
+INSERT INTO devices (mac, user_id, internet, date_time)
 VALUES ($1, $2, $3, $4)
         "#,
-            session.ip4,
-            user_id,
-            session.internet,
-            session.date_time
+            device.mac,
+            device.user_id,
+            device.internet,
+            device.date_time
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn get_session_by_user_id(&self, id: String) -> Option<Session> {
-        return match sqlx::query!(
+    pub async fn get_devices_by_user_id(&self, id: Uuid) -> Result<Vec<Device>> {
+        let records = sqlx::query!(
             r#"
-                SELECT * FROM sessions
+                SELECT * FROM devices
                 WHERE user_id=$1
             "#,
-            match Uuid::from_str(id.as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => None,
-            }
+            id
         )
-        .fetch_one(&self.pool)
-        .await
-        {
-            Ok(x) => Some(Session {
-                id: Some(x.id.as_hyphenated().to_string()),
-                ip4: x.ip4.to_string(),
-                user_id: match x.user_id {
-                    Some(i) => Some(i.as_hyphenated().to_string()),
-                    None => None,
-                },
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(records
+            .into_iter()
+            .map(|x| Device {
+                id: x.id,
+                mac: x.mac.to_string(),
+                user_id: x.user_id,
                 internet: x.internet,
                 date_time: x.date_time,
-            }),
-
-            Err(_) => None,
-        };
+            })
+            .collect())
     }
 
-    pub async fn update_session(&self, session: Session) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
-
-        match sqlx::query!(
+    pub async fn get_device_by_mac(&self, mac: String) -> Result<Option<Device>> {
+        Ok(sqlx::query!(
             r#"
-            UPDATE sessions
-            SET ip4 = $1,
+                SELECT * FROM devices
+                WHERE mac=$1
+            "#,
+            mac
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|x| Device {
+            id: x.id,
+            mac: x.mac.to_string(),
+            user_id: x.user_id,
+            internet: x.internet,
+            date_time: x.date_time,
+        }))
+    }
+
+    pub async fn update_device(&self, device: Device) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        sqlx::query!(
+            r#"
+            UPDATE devices
+            SET mac = $1,
             user_id = $2,
             internet = $3,
             date_time = $4
             WHERE id=$5
         "#,
-            session.ip4,
-            match Uuid::from_str(
-                session
-                    .user_id
-                    .expect("[ASSERTION] could not get id")
-                    .as_str()
-            ) {
-                Ok(u) => Some(u),
-                Err(_) => return false,
-            },
-            session.internet,
-            session.date_time,
-            match Uuid::from_str(session.id.expect("[ASSERTION] could not get id").as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => return false,
-            }
+            device.mac,
+            device.user_id,
+            device.internet,
+            device.date_time,
+            device.id
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn delete_session(&self, id: String) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
+    pub async fn delete_device(&self, id: Uuid) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
 
-        match sqlx::query!(
+        sqlx::query!(
             r#"
-            DELETE FROM sessions
+            DELETE FROM devices
             WHERE id=$1
         "#,
-            match Uuid::from_str(id.as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => return false,
-            }
+            id
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn get_sessions(&self) -> Option<Vec<Session>> {
-        let mut res: Vec<Session> = Vec::new();
+    pub async fn get_devices(&self) -> Result<Vec<Device>> {
+        let mut res: Vec<Device> = Vec::new();
 
-        match sqlx::query!(
+        let q = sqlx::query!(
             r#"
-                SELECT * FROM sessions
+                SELECT * FROM devices
             "#
         )
         .fetch_all(&self.pool)
-        .await
-        {
-            Ok(q) => {
-                for x in &q {
-                    let user_id = match x.user_id {
-                        Some(i) => Some(i.as_hyphenated().to_string()),
-                        None => None,
-                    };
-                    res.push(Session {
-                        id: Some(x.id.as_hyphenated().to_string()),
-                        ip4: x.ip4.to_string(),
-                        user_id,
-                        internet: x.internet,
-                        date_time: x.date_time,
-                    });
-                }
-            }
-            Err(_) => return None,
-        };
+        .await?;
 
-        Some(res)
+        for x in &q {
+            res.push(Device {
+                id: x.id,
+                mac: x.mac.to_string(),
+                user_id: x.user_id,
+                internet: x.internet,
+                date_time: x.date_time,
+            });
+        }
+
+        Ok(res)
     }
 
-    pub async fn insert_user(&self, user: User) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
+    pub async fn insert_user(&self, user: UserInputUnchecked) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
 
-        match sqlx::query!(
+        sqlx::query!(
             r#"
 INSERT INTO users (username, firstname, lastname, email, password, phone, role, is_allowed)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -226,31 +170,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             user.email,
             user.password,
             user.phone,
-            user.role,
-            user.is_allowed
+            "user",
+            false
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn update_user(&self, user: User) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
-
-        match sqlx::query!(
+    pub async fn update_user(&self, user: User) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!(
             r#"
             UPDATE users
             SET username = $1,
@@ -271,97 +202,65 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             user.phone,
             user.role,
             user.is_allowed,
-            match Uuid::from_str(user.id.expect("[ASSERTION] could not get id").as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => return false,
-            }
+            user.id
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn delete_user(&self, id: String) -> bool {
-        let mut tx = match self.pool.begin().await {
-            Ok(transaction) => transaction,
-            Err(_) => {
-                return false;
-            }
-        };
+    pub async fn delete_user(&self, id: Uuid) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
 
-        match sqlx::query!(
+        sqlx::query!(
             r#"
             DELETE FROM users
             WHERE id=$1
         "#,
-            match Uuid::from_str(id.as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => return false,
-            }
+            id
         )
         .execute(&mut *tx)
-        .await
-        {
-            Ok(_) => {}
-            Err(_) => return false,
-        };
+        .await?;
 
-        return match tx.commit().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        tx.commit().await.map_err(Into::into)
     }
 
-    pub async fn check_password(
-        &self,
-        login: String,
-        password: String,
-    ) -> Option<(String, String)> {
-        return match sqlx::query!(
+    pub async fn check_password(&self, login: String, password: String) -> Result<(String, Uuid)> {
+        let res = sqlx::query!(
             r#"
                 SELECT password, role, id FROM users
                 WHERE username=$1
             "#,
             login
         )
-        .fetch_one(&self.pool)
-        .await
-        {
-            Ok(x) => {
+        .fetch_optional(&self.pool)
+        .await?;
+        match res {
+            Some(x) => {
                 if check_hash(password, x.password.to_string()) {
-                    Some((x.role.to_string(), x.id.as_hyphenated().to_string()))
+                    Ok((x.role.to_string(), x.id))
                 } else {
-                    None
+                    Err(InvalidCredential)
                 }
             }
-            Err(_) => None,
-        };
+            None => Err(InvalidCredential),
+        }
     }
 
-    pub async fn get_user(&self, id: String) -> Option<User> {
-        return match sqlx::query!(
+    pub async fn get_user(&self, id: Uuid) -> Result<Option<User>> {
+        let res = sqlx::query!(
             r#"
                 SELECT * FROM users
                 WHERE id=$1
             "#,
-            match Uuid::from_str(id.as_str()) {
-                Ok(u) => Some(u),
-                Err(_) => None,
-            }
+            id
         )
-        .fetch_one(&self.pool)
-        .await
-        {
-            Ok(x) => Some(User {
-                id: Some(x.id.as_hyphenated().to_string()),
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(match res {
+            Some(x) => Some(User {
+                id: x.id,
                 username: x.username.to_string(),
                 firstname: x.firstname.to_string(),
                 lastname: x.lastname.to_string(),
@@ -372,39 +271,35 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 is_allowed: x.is_allowed,
             }),
 
-            Err(_) => None,
-        };
+            None => None,
+        })
     }
 
-    pub async fn get_users(&self) -> Option<Vec<User>> {
+    pub async fn get_users(&self) -> Result<Vec<User>> {
         let mut res: Vec<User> = Vec::new();
 
-        match sqlx::query!(
+        let q = sqlx::query!(
             r#"
                 SELECT * FROM users
             "#
         )
         .fetch_all(&self.pool)
-        .await
-        {
-            Ok(q) => {
-                for x in &q {
-                    res.push(User {
-                        id: Some(x.id.as_hyphenated().to_string()),
-                        username: x.username.to_string(),
-                        firstname: x.firstname.to_string(),
-                        lastname: x.lastname.to_string(),
-                        email: x.email.to_string(),
-                        password: x.password.to_string(),
-                        phone: x.phone.to_string(),
-                        role: x.role.to_string(),
-                        is_allowed: x.is_allowed,
-                    });
-                }
-            }
-            Err(_) => return None,
-        };
+        .await?;
 
-        Some(res)
+        for x in &q {
+            res.push(User {
+                id: x.id,
+                username: x.username.to_string(),
+                firstname: x.firstname.to_string(),
+                lastname: x.lastname.to_string(),
+                email: x.email.to_string(),
+                password: x.password.to_string(),
+                phone: x.phone.to_string(),
+                role: x.role.to_string(),
+                is_allowed: x.is_allowed,
+            });
+        }
+
+        Ok(res)
     }
 }

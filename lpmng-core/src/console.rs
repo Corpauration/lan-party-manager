@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
+use super::db::DbHandler;
+use crate::model::device::Device;
 use dialoguer::{theme::ColorfulTheme, Completion, History, Input};
 use futures::executor;
-
 use lpmng_mq::client::agent::RouterRequest;
 use lpmng_mq::client::Client;
-
-use super::db::DbHandler;
+use tracing::{error, info};
 
 pub struct ConsoleHandler {
     pub db_handler: Option<DbHandler>,
@@ -24,22 +24,22 @@ pub static BANNER: &str = "
 ";
 
 fn help() {
-    println!("");
+    println!();
     println!("help :");
-    println!("");
+    println!();
     println!("help : show this help");
     println!("clear : clear console");
     println!("exit : exit the console");
     println!("rc / router-connect : connect to the router ");
     println!("rp / router-ping : ping the router");
-    println!("radd / router-add [ipv4] : allow an ip address");
-    println!("rrm / router-remove [ipv4] : remove an ip address");
-    println!("rget / router-get : get authorised ips");
+    println!("radd / router-add [mac] : allow a mac address");
+    println!("rrm / router-remove [mac] : remove a mac address");
+    println!("rget / router-get : get authorised macs");
     println!("dbc / db-connect : connect to the database");
     println!("dbu / db-users : get users from the database");
-    println!("saveme : reset the router and readd all session that have internet true");
+    println!("saveme : reset the router and read all devices that have internet true");
     println!("banner : print banner");
-    println!("");
+    println!();
 }
 
 async fn router_connect(handler: &mut ConsoleHandler) -> Result<(), String> {
@@ -66,14 +66,14 @@ async fn router_ping(handler: &mut ConsoleHandler) -> Result<(), String> {
     }
 }
 
-async fn router_ip_action(
+async fn router_mac_action(
     handler: &mut ConsoleHandler,
     args: &[&str],
     action: &str,
     success_msg: &str,
 ) -> Result<(), String> {
     if handler.router.is_some() {
-        if args.len() > 0 {
+        if !args.is_empty() {
             let res = handler
                 .router
                 .as_mut()
@@ -84,7 +84,7 @@ async fn router_ip_action(
                 })
                 .await;
             if res.success {
-                println!("{}", success_msg);
+                info!("{}", success_msg);
                 Ok(())
             } else {
                 Err(format!("router error: {}", res.body))
@@ -109,7 +109,7 @@ async fn router_get(handler: &mut ConsoleHandler) -> Result<(), String> {
             })
             .await;
         if res.success {
-            println!("Authorized ips : \n");
+            println!("Authorized macs : \n");
             println!("{}", res.body);
             Ok(())
         } else {
@@ -121,7 +121,10 @@ async fn router_get(handler: &mut ConsoleHandler) -> Result<(), String> {
 }
 
 async fn db_connect(handler: &mut ConsoleHandler) -> Result<(), String> {
-    handler.db_handler = DbHandler::connect().await;
+    handler.db_handler = DbHandler::connect()
+        .await
+        .map_err(|error| error!(?error, "Failed to connect to db"))
+        .ok();
 
     if handler.db_handler.is_some() {
         println!("Database successfully connected !");
@@ -132,48 +135,54 @@ async fn db_connect(handler: &mut ConsoleHandler) -> Result<(), String> {
 }
 
 async fn db_get_users(handler: &mut ConsoleHandler) -> Result<(), String> {
-    handler.db_handler = DbHandler::connect().await;
+    handler.db_handler = DbHandler::connect()
+        .await
+        .map_err(|error| error!(?error, "Failed to connect to db"))
+        .ok();
 
     if handler.db_handler.is_some() {
-        let users = handler.db_handler.as_mut().unwrap().get_users().await;
+        let users = handler
+            .db_handler
+            .as_mut()
+            .unwrap()
+            .get_users()
+            .await
+            .map_err(|error| format!("{error:?}"))?;
 
-        if users.is_some() {
-            println!("username firstname lastname role is_allowed");
-            println!("-----");
+        println!("username firstname\tlastname\trole\tis_allowed");
+        println!("-----");
 
-            for u in users.unwrap() {
-                println!(
-                    "{} {} {} {} {}",
-                    u.username, u.firstname, u.lastname, u.role, u.is_allowed
-                );
-            }
-            Ok(())
-        } else {
-            Err("error: database request failed".to_owned())
+        for u in users {
+            println!(
+                "{}\t{}\t\t{}\t{}\t{}",
+                u.username, u.firstname, u.lastname, u.role, u.is_allowed
+            );
         }
+        Ok(())
     } else {
         Err("There is no connection to the database, try command 'rdb'".to_owned())
     }
 }
 
-async fn saveme(mut handler: &mut ConsoleHandler) -> Result<(), String> {
-    if !handler.db_handler.is_some() {
+async fn saveme(handler: &mut ConsoleHandler) -> Result<(), String> {
+    if handler.db_handler.is_none() {
         return Err("Unable to connect to the database".to_owned());
     }
 
-    if !handler.router.is_some() {
+    if handler.router.is_none() {
         return Err("Unable to connect to the database".to_owned());
     }
 
-    let mut sess: Vec<crate::models::Session> = handler
+    let mut devices: Vec<Device> = handler
         .db_handler
         .as_mut()
         .unwrap()
-        .get_sessions()
+        .get_devices()
         .await
+        .map_err(|error| error!(?error, "Failed to get devices"))
         .unwrap_or_default();
 
-    sess.retain(|s| s.internet);
+    devices.retain(|s| s.internet);
 
     _ = handler
         .router
@@ -185,18 +194,16 @@ async fn saveme(mut handler: &mut ConsoleHandler) -> Result<(), String> {
         })
         .await;
 
-    for s in sess {
-        let r = router_ip_action(
-            &mut handler,
-            &[s.ip4.as_str()],
+    for s in devices {
+        let r = router_mac_action(
+            handler,
+            &[s.mac.as_str()],
             "add",
-            format!("ip {} added !", s.ip4.as_str()).as_str(),
+            format!("mac {} added !", s.mac.as_str()).as_str(),
         )
         .await;
 
-        if r.is_err() {
-            return r;
-        }
+        r?;
     }
 
     Ok(())
@@ -269,7 +276,7 @@ impl Completion for ConsoleCompletion {
     }
 }
 
-async fn _command_executor(cmd: &str, mut handler: &mut ConsoleHandler) -> Result<(), String> {
+async fn _command_executor(cmd: &str, handler: &mut ConsoleHandler) -> Result<(), String> {
     let mut cmd = String::from(cmd);
     cmd.retain(|c| c != '\n');
     let args: Vec<&str> = cmd.split_whitespace().collect();
@@ -284,28 +291,28 @@ async fn _command_executor(cmd: &str, mut handler: &mut ConsoleHandler) -> Resul
             Ok(())
         }
         "exit" => std::process::exit(0),
-        "rc" | "router-connect" => router_connect(&mut handler).await,
-        "rp" | "router-ping" => router_ping(&mut handler).await,
+        "rc" | "router-connect" => router_connect(handler).await,
+        "rp" | "router-ping" => router_ping(handler).await,
         "radd" | "router-add" => {
-            router_ip_action(&mut handler, &args[1..], "add", "ip successfully added !").await
+            router_mac_action(handler, &args[1..], "add", "mac successfully added!").await
         }
         "rrm" | "router-remove" => {
-            router_ip_action(
-                &mut handler,
+            router_mac_action(
+                handler,
                 &args[1..],
                 "remove",
-                "ip successfully removed !",
+                "mac successfully removed!",
             )
             .await
         }
-        "rget" | "router-get" => router_get(&mut handler).await,
-        "dbc" | "db-connect" => db_connect(&mut handler).await,
-        "dbu" | "db-users" => db_get_users(&mut handler).await,
+        "rget" | "router-get" => router_get(handler).await,
+        "dbc" | "db-connect" => db_connect(handler).await,
+        "dbu" | "db-users" => db_get_users(handler).await,
         "banner" => {
             println!("{}", BANNER);
             Ok(())
         }
-        "saveme" => saveme(&mut handler).await,
+        "saveme" => saveme(handler).await,
         _ => Err("error: this command does not exist".to_owned()),
     }
 }
@@ -319,11 +326,11 @@ pub async fn console(mut handler: ConsoleHandler) {
     let completion = ConsoleCompletion::default();
 
     if handler.router.is_some() {
-        println!("Router successfully connected !");
+        info!("Router successfully connected !");
     }
 
     if handler.db_handler.is_some() {
-        println!("Database successfully connected !");
+        info!("Database successfully connected !");
     }
 
     println!("[GREET] Time for C-sides !");
