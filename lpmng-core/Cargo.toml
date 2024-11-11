@@ -6,21 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-warp = "0.3.3"
-tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
-sqlx = {version = "0.8.2", features = ["runtime-tokio-native-tls", "postgres", "chrono", "json", "uuid"]}
-serde = "1.0.145"
+warp = { version = "0.3.3", default-features = false }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+sqlx = { version = "0.8.2", features = ["runtime-tokio-native-tls", "postgres", "chrono", "json", "uuid"] }
+serde = { workspace = true }
 password-auth = "1.0.0"
 biscuit-auth = "5.0.0"
-base64-url = "3.0.0"
-serde_json = "1.0.86"
-chrono = {version = "0.4.22", features = ["serde"]}
-lpmng-mq = {path = "../lpmng-mq"}
-dialoguer = {version = "0.11.0", features = ["history", "completion"]}
-futures = "0.3.28"
+serde_json = { workspace = true }
+chrono = { version = "0.4.38", features = ["serde"] }
+lpmng-mq = { path = "../lpmng-mq" }
+dialoguer = { version = "0.11.0", features = ["history", "completion"] }
+futures = "0.3.31"
 regex = "1"
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 uuid = { version = "1.11.0", features = ["serde"] }
 lazy_static = "1.5.0"
 rtnetlink = "0.14.1"

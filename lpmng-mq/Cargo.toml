@@ -7,17 +7,16 @@ edition = "2021"
 
 [dependencies]
 prost = "0.13.3"
-tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tonic = "0.12.3"
-log = "0.4.22"
 
 [build-dependencies]
 tonic-build = "0.12.3"
 
 [[bin]]
-    name = "server-test"
-    path = "src/bin/server-test.rs"
+name = "server-test"
+path = "src/bin/server-test.rs"
 
 [[bin]]
-    name = "client-test"
-    path = "src/bin/client-test.rs"
+name = "client-test"
+path = "src/bin/client-test.rs"
