@@ -66,13 +66,13 @@ fn trace_router_response(res: AgentResponse) -> Result<()> {
 
 fn with_handler(
     handler: Arc<ApiHandler>,
-) -> impl Filter<Extract = (Arc<ApiHandler>,), Error = Infallible> + Clone {
+) -> impl Filter<Extract=(Arc<ApiHandler>,), Error=Infallible> + Clone {
     warp::any().map(move || handler.clone())
 }
 
 pub fn api_routes(
     handler: Arc<ApiHandler>,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract=impl Reply, Error=Rejection> + Clone {
     warp::path("api")
         .and(
             devices::routes(handler.clone())
@@ -80,6 +80,13 @@ pub fn api_routes(
                 .or(login::routes(handler.clone())),
         )
         .recover(Error::handle_warp_rejection)
+        .with(
+            warp::cors()
+                .allow_any_origin()
+                .allow_methods(vec!["GET", "POST", "DELETE", "PATCH", "OPTIONS"])
+                .allow_header("content-type")
+                .allow_header("authorization")
+        )
         .with(warp::trace(move |info| {
             let headers = info.request_headers();
             let ip = headers
@@ -122,7 +129,7 @@ pub fn api_routes(
 
 pub fn public_route(
     public: String,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract=impl Reply, Error=Rejection> + Clone {
     if !Path::new(&public).exists() {
         error!(path = public, "unable to find the static html directory");
         panic!();
