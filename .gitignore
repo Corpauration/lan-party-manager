@@ -1,2 +1,4 @@
 target
 lpmng-core/src/public
+node_modules
+lpmng-core/public

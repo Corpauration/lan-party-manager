@@ -1,0 +1,9 @@
+[package]
+name = "_"
+edition = "2021"
+[lib]
+path = "empty.rs"
+
+[build-dependencies]
+ines-core = "0.0.2"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

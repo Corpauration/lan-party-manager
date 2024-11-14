@@ -1,0 +1,9 @@
+version = 0
+out = "../lpmng-core/public"
+
+generate_redirects = [
+  "/login",
+  "/register",
+  "/no-internet",
+  "/admin",
+]

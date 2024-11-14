@@ -1,0 +1,70 @@
+<style>
+  @import url("index.css");
+
+  a {
+    width: auto;
+    display: flex;
+    background: var(--color-blue-latte);
+    border-radius: 8px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  a:hover {
+    background: color-mix(in srgb, var(--color-blue-latte), white 5%);
+  }
+
+  a:active {
+    background: color-mix(in srgb, var(--color-blue-latte), white 10%);
+  }
+
+  a.normal {
+    height: 44px;
+    padding: 0 20px;
+  }
+
+  a.fa {
+    width: fit-content;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 50px;
+    gap: 5px;
+  }
+
+  a.icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 0.875rem;
+    color: white;
+    border-radius: 50%;
+    background: none;
+  }
+
+  a.icon:hover {
+    background: #ffffff0f;
+  }
+
+  a.icon:active {
+    background: #ffffff1f;
+  }
+
+  a.icon > #text {
+    display: none;
+  }
+
+  #text {
+    font-weight: 500;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+</style>
+
+<a id="main" class="normal">
+  <slot name="icon"></slot>
+  <slot id="text"></slot>
+</a>

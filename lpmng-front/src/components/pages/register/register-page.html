@@ -1,0 +1,106 @@
+<style>
+  @import url("index.css");
+
+  .center {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  img {
+    width: 10vw;
+    margin-bottom: 40px;
+  }
+
+  .form {
+    display: block;
+    max-height: 50vh;
+    overflow: scroll;
+    overflow-x: hidden;
+    padding-right: 10px;
+    scrollbar-width: thin;
+  }
+
+  .inline {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .inline > * {
+    width: 48%;
+  }
+</style>
+
+<div class="center">
+  <img src="assets/logo.png" />
+  <div style="width: 40vw">
+    <lpmng-card id="test">
+      <h2>Inscription</h2>
+      <h3>Inscrivez-vous afin d'accéder à internet</h3>
+      <br />
+      <div class="form">
+        <lpmng-text-input
+          placeholder="Nom d'utilisateur"
+          type="text"
+          register="register-username"
+        >
+          <span class="material-icons" slot="before">person</span>
+        </lpmng-text-input>
+        <div class="inline">
+          <lpmng-text-input
+            placeholder="Prénom"
+            type="text"
+            register="register-firstname"
+          >
+            <span class="material-icons" slot="before">person</span>
+          </lpmng-text-input>
+          <lpmng-text-input
+            placeholder="Nom de famille"
+            type="text"
+            register="register-lastname"
+          >
+            <span class="material-icons" slot="before">person</span>
+          </lpmng-text-input>
+        </div>
+        <div class="inline">
+          <lpmng-text-input
+            placeholder="Addresse email"
+            type="text"
+            register="register-email"
+          >
+            <span class="material-icons" slot="before">email</span>
+          </lpmng-text-input>
+          <lpmng-text-input
+            placeholder="Numéro de téléphone"
+            type="text"
+            register="register-phone"
+          >
+            <span class="material-icons" slot="before">phone</span>
+          </lpmng-text-input>
+        </div>
+        <lpmng-text-input
+          placeholder="Mot de passe"
+          type="password"
+          register="register-password"
+        >
+          <span class="material-icons" slot="before">lock</span>
+        </lpmng-text-input>
+        <lpmng-text-input
+          placeholder="Confirmer votre mot de passe"
+          type="password"
+          register="register-confirm-password"
+        >
+          <span class="material-icons" slot="before">lock</span>.
+        </lpmng-text-input>
+        <lpmng-checkbox register="register-agree"
+          >J'ai lu et accepté le règlement de la LAN</lpmng-checkbox
+        >
+      </div>
+      <br />
+      <lpmng-button register="register-button">Inscription</lpmng-button>
+    </lpmng-card>
+  </div>
+</div>

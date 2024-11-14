@@ -1,0 +1,54 @@
+<style>
+  @import url("index.css");
+
+  .center {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  img {
+    width: 10vw;
+    margin-bottom: 40px;
+  }
+</style>
+
+<div class="center">
+  <img src="assets/logo.png" />
+  <div style="width: 40vw">
+    <lpmng-card id="test">
+      <div style="display: flex; justify-content: end">
+        <router-link href="/register" invisible>
+          <lpmng-button type="fa"
+            ><span class="material-icons" slot="icon">person_add</span>Créer un
+            compte
+          </lpmng-button>
+        </router-link>
+      </div>
+      <h2>Connexion</h2>
+      <h3>Connectez-vous afin d'accéder à internet</h3>
+      <br />
+      <lpmng-text-input
+        id="username"
+        placeholder="Nom d'utilisateur"
+        type="text"
+        register="login-username"
+      >
+        <span class="material-icons" slot="before">person</span>
+      </lpmng-text-input>
+      <lpmng-text-input
+        id="password"
+        placeholder="Mot de passe"
+        type="password"
+        register="login-password"
+      >
+        <span class="material-icons" slot="before">lock</span>
+      </lpmng-text-input>
+      <br />
+      <lpmng-button register="login-button"> Connexion </lpmng-button>
+    </lpmng-card>
+  </div>
+</div>

@@ -1,0 +1,64 @@
+<style>
+  @import url("index.css");
+
+  .material-checkbox {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .material-checkbox input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .checkmark {
+    position: relative;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    border: 2px solid white;
+    border-radius: 4px;
+    transition: all 0.3s;
+  }
+
+  .material-checkbox input[type="checkbox"]:checked ~ .checkmark {
+    background-color: var(--color-blue-latte);
+    border-color: var(--color-blue-latte);
+  }
+
+  .material-checkbox input[type="checkbox"]:checked ~ .checkmark:after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    left: 7px;
+    width: 5px;
+    height: 12px;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+  }
+
+  .material-checkbox:hover input[type="checkbox"] ~ .checkmark {
+    border-color: var(--color-blue-latte);
+  }
+
+  .material-checkbox.error {
+    color: var(--color-red);
+  }
+
+  .material-checkbox.error > .checkmark {
+    border-color: var(--color-red);
+  }
+</style>
+
+<div>
+  <label id="label" class="material-checkbox">
+    <input id="input" type="checkbox" />
+    <span class="checkmark"></span>
+    <slot></slot>
+  </label>
+</div>

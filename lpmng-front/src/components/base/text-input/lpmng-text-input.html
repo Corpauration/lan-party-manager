@@ -1,0 +1,84 @@
+<style>
+  @import url("index.css");
+
+  input {
+    display: block;
+    height: 32px;
+    width: 100%;
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: white;
+    font-size: 16px;
+    line-height: 20px;
+  }
+
+  input:focus {
+    outline: none;
+  }
+
+  #input {
+    display: flex;
+    margin-bottom: 8px;
+    padding: 0 12px;
+    align-items: center;
+    height: 56px;
+    cursor: text;
+    border-radius: 8px;
+    border: white 1px solid;
+    gap: 5px;
+  }
+
+  #input:focus-within {
+    /*height: 54px;*/
+    padding: 0 8px 0 12px;
+    outline: white 1px solid;
+    /*border: white 2px solid;*/
+  }
+
+  #main {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    flex-grow: 1;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  #details {
+    display: none;
+    height: 14px;
+    padding: 0 12px;
+    margin-bottom: 8px;
+    color: var(--color-red);
+    font-size: 12px;
+  }
+
+  #details-container {
+    height: 14px;
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  #main.error > #input {
+    height: 54px;
+    padding: 0 8px 0 11px;
+    border: var(--color-red) 1px solid;
+    outline: var(--color-red) 1px solid;
+  }
+
+  #main.error #details {
+    display: block;
+  }
+</style>
+
+<div id="main">
+  <div id="input">
+    <slot name="before"></slot>
+    <input id="in" type="text" />
+    <slot name="after"></slot>
+  </div>
+  <div id="details-container"><div id="details"></div></div>
+</div>

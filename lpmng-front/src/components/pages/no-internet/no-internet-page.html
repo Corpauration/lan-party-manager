@@ -1,0 +1,38 @@
+<style>
+  @import url("index.css");
+
+  .center {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
+
+<div class="center">
+  <div style="width: 40vw">
+    <lpmng-card id="test">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 10px;
+        "
+      >
+        <lpmng-button type="icon" register="ni-logout"
+          ><span class="material-icons" slot="icon">logout</span></lpmng-button
+        >
+        <lpmng-button type="icon" register="ni-refresh"
+          ><span class="material-icons" slot="icon">refresh</span></lpmng-button
+        >
+      </div>
+      <h2>Pas d'internet :/</h2>
+      <p>
+        Vous n'avez pas été autorisé à accéder à internet. Merci d'aller dans la
+        salle E214 pour demander l'accès.
+      </p>
+    </lpmng-card>
+  </div>
+</div>

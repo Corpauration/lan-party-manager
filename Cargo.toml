@@ -3,7 +3,8 @@ resolver = "2"
 members = [
   "lpmng-mq",
   "lpmng-core",
-  "lpmng-router"
+  "lpmng-router",
+  "lpmng-front"
 ]
 
 [workspace.dependencies]

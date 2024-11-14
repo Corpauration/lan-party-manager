@@ -1,0 +1,39 @@
+<style>
+  @import url("index.css");
+
+  .center {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
+
+<div class="center">
+  <div style="width: 40vw">
+    <lpmng-card>
+      <h2>Bravo <span id="firstname"></span> !</h2>
+      <h3>Vous avez accès à internet !</h3>
+      <br />
+
+      <div style="display: flex; justify-content: center; overflow: hidden">
+        <video
+          id="video"
+          width="640"
+          height="480"
+          autoplay="autoplay"
+          loop="loop"
+        >
+          <source src="assets/internet.mp4" type="video/mp4" />
+        </video>
+      </div>
+
+      <br />
+      <lpmng-button type="icon" register="main-logout"
+        ><span class="material-icons" slot="icon">logout</span></lpmng-button
+      >
+    </lpmng-card>
+  </div>
+</div>
