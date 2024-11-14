@@ -3,7 +3,7 @@ import { UserView } from "../models/user.js";
 import { Device, DeviceInput } from "../models/device.js";
 import { router } from "./router.js";
 
-const base = "http://localhost/api";
+const base = "/api";
 
 class Lpmng {
   /** @type ?Credentials */
