@@ -94,16 +94,18 @@ pub async fn add_device(
 
     match old_device {
         None => {
-            handler
-                .router
-                .lock()
-                .await
-                .send(RouterRequest {
-                    action: "add".to_string(),
-                    body: mac.clone(),
-                })
-                .map(trace_router_response)
-                .await?;
+            if authorized {
+                handler
+                    .router
+                    .lock()
+                    .await
+                    .send(RouterRequest {
+                        action: "add".to_string(),
+                        body: mac.clone(),
+                    })
+                    .map(trace_router_response)
+                    .await?;
+            }
             handler
                 .db
                 .insert_device(NewDevice {
@@ -163,7 +165,7 @@ pub async fn add_device(
 
 pub(super) fn routes(
     handler: Arc<ApiHandler>,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract=impl Reply, Error=Rejection> + Clone {
     let list = warp::get()
         .and(warp::path("devices"))
         .and(warp::header::<String>("Authorization"))
