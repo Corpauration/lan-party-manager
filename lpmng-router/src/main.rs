@@ -183,6 +183,8 @@ async fn main() {
         let server = Server::new(&router_address, server_handler, nftables);
 
         info!("server has started");
-        let _ = server.serve().await;
+        if let Err(error) = server.serve().await {
+            error!(?error, "Server crashed!");
+        }
     }
 }
